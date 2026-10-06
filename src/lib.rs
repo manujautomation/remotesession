@@ -45,6 +45,8 @@ mod clipboard;
 pub mod core_main;
 mod custom_server;
 mod lang;
+pub mod mrc_broker;
+pub mod mrc_update;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod port_forward;
 mod port_forward_mux;

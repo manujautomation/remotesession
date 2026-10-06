@@ -1031,6 +1031,11 @@ pub fn check_software_update() {
 // Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
+    // Mendocino: check our own GitHub releases rather than api.rustdesk.com, which would
+    // disclose this fleet to a third party and offer the wrong builds.
+    if crate::mrc_update::is_enabled() {
+        return crate::mrc_update::check_github_release().await;
+    }
     let (request, url) =
         hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
     let proxy_conf = Config::get_socks();
@@ -2460,7 +2465,10 @@ pub fn read_custom_client(config: &str) {
         log::error!("Failed to decode custom client config");
         return;
     };
-    const KEY: &str = "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=";
+    // Mendocino: our own config-signing key, replacing upstream's. Only configs signed by
+    // client/mrc_signing_key.json are accepted, so nobody can forge a custom.txt that
+    // redirects our agents at another rendezvous server.
+    const KEY: &str = "KBsoSFJbbJM6HrV0oWofMpsiJsHnC9YcFBHA6Sd4guY=";
     let Some(pk) = get_rs_pk(KEY) else {
         log::error!("Failed to parse public key of custom client");
         return;

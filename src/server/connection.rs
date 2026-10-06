@@ -3034,6 +3034,12 @@ impl Connection {
                     self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_WRONG)
                         .await;
                     self.try_start_cm(lr.my_id, lr.my_name, false);
+                } else if !crate::mrc_broker::authorize_inbound(&lr.my_id).await {
+                    // The broker owns the concurrency caps; a configured broker that
+                    // cannot be reached denies rather than waives.
+                    self.send_login_error(crate::mrc_broker::LOGIN_MSG_SESSION_DENIED)
+                        .await;
+                    self.try_start_cm(lr.my_id, lr.my_name, false);
                 } else {
                     self.update_failure_with_scope(failure, true, 0, FailureScope::Default);
                     if !self.send_logon_response_and_keep_alive().await {

@@ -58,3 +58,34 @@ libsciter.dylib
 flutter/web/
 # libdrmtap is cloned at build time by build.py (not a submodule)
 /third_party/libdrmtap/
+# Mendocino additions — appended to the fork's .gitignore before pushing.
+#
+# This repository is PUBLIC. The signing key below is the one secret that must never
+# reach it: with it, anyone could sign a custom.txt that redirects every agent in the
+# fleet to a server of their choosing. It lives only on the build host.
+
+mrc_signing_key.json
+*signing_key*.json
+custom.txt
+
+# Build artefacts and local caches
+.cargo-home/
+.pub-cache/
+flutter/build/
+flutter/.dart_tool/
+flutter/lib/generated_bridge.dart
+flutter/lib/generated_bridge.freezed.dart
+target/
+*.deb
+*.exe
+*.zip
+
+# Side-effects of running flutter with HOME set to the repo (containerised builds)
+.config/
+.dart-tool/
+.flutter
+.flutter-devtools/
+
+# Upstream ignores *svg wholesale; our mark is a real source asset and must ship.
+# Without this the Windows CI build has no logo and loadLogo() throws at runtime.
+!flutter/assets/mendocino_mark.svg

@@ -1,0 +1,128 @@
+# Windows build for Remote Session by Mendocino-Apcela.
+#
+# Flutter cannot cross-compile Windows desktop apps from Linux — the embedder is built
+# with MSVC — so this is the only way we get an .exe without maintaining a Windows box.
+#
+# Adapted from upstream's build-for-windows-flutter job, keeping the parts that matter and
+# dropping the optional extras:
+#   kept    : custom Flutter engine (x64 texture rendering), the 3.24.5 dropdown patch,
+#             vcpkg codecs, flutter_rust_bridge codegen
+#   dropped : usbmmidd virtual display, printer driver, hwcodec/vram, arm64
+#             — all optional features pulling third-party binaries; add later if wanted.
+#
+# The artifact is UNPROVISIONED on purpose. Provisioning needs mrc_signing_key.json, which
+# must never reach a public repo: with it, anyone could sign a custom.txt redirecting every
+# agent in the fleet to their own server. Run client/mrc_provision.py locally instead.
+
+name: windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  RUST_VERSION: "1.75"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836"
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "15.0.6"
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      # Upstream ships a patched engine for texture rendering on x64. Skipping it risks
+      # runtime rendering differences, so we match upstream rather than find out.
+      - name: Replace engine with rustdesk custom flutter engine
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          mv -Force windows-x64-release/* "C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/"
+
+      - name: Patch flutter
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cd $(dirname $(dirname $(which flutter)))
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: mendocino-windows
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:/vcpkg
+          doNotUpdateVcpkg: true
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+
+      - name: Install vcpkg dependencies
+        run: |
+          vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+        env:
+          VCPKG_DEFAULT_TRIPLET: x64-windows-static
+
+      # `flutter pub get` MUST run before codegen: the generator shells out to
+      # `flutter pub run ffigen`, which needs .dart_tool/package_config.json. Without it
+      # the only symptom is "ffigen failed" with empty stdout AND stderr.
+      - name: Generate the Dart bridge
+        shell: bash
+        run: |
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
+          pushd flutter && flutter pub get && popd
+          flutter_rust_bridge_codegen \
+            --rust-input ./src/flutter_ffi.rs \
+            --dart-output ./flutter/lib/generated_bridge.dart \
+            --c-output ./flutter/macos/Runner/bridge_generated.h
+
+      - name: Build
+        run: |
+          python3 .\build.py --portable --flutter --skip-portable-pack
+          mv ./flutter/build/windows/x64/runner/Release ./mendocino-apcela-remote
+
+      # Version comes from Cargo.toml so it matches crate::VERSION, which is what the
+      # in-app updater compares GitHub release tags against. If these drift, the update
+      # channel silently stops offering anything.
+      - name: Package
+        shell: bash
+        run: |
+          VERSION=$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          7z a -tzip "mendocino-apcela-remote-${VERSION}-x86_64.zip" ./mendocino-apcela-remote/*
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mendocino-apcela-remote-windows-x86_64
+          path: mendocino-apcela-remote-*.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mendocino-apcela-remote-*.zip

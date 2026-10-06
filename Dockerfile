@@ -32,11 +32,17 @@ RUN apt update -y && \
         ninja-build && \
         rm -rf /var/lib/apt/lists/*
 
+# Build hosts without working IPv6 stall here: wget and git resolve AAAA first and have no
+# happy-eyeballs fallback, so they hang indefinitely rather than retrying over IPv4. Curl
+# falls back, which is why a curl-based reachability test passes while the build hangs.
+# Prefer IPv4 for every resolver call in this image.
+RUN echo 'precedence ::ffff:0:0/96  100' >> /etc/gai.conf
+
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.30.6/cmake-3.30.6.tar.gz --no-check-certificate && \
     tar xzf cmake-3.30.6.tar.gz && \
     cd cmake-3.30.6 && \
     ./configure  --prefix=/usr/local && \
-    make && \
+    make -j4 && \
     make install
 
 RUN git clone --branch 2023.04.15 --depth=1 https://github.com/microsoft/vcpkg && \

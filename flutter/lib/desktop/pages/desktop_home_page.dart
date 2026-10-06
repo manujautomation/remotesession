@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hbb/desktop/widgets/mendocino_branding.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/widgets/animated_rotation_widget.dart';
 import 'package:flutter_hbb/common/widgets/custom_password.dart';
@@ -32,7 +33,7 @@ class DesktopHomePage extends StatefulWidget {
   State<DesktopHomePage> createState() => _DesktopHomePageState();
 }
 
-const borderColor = Color(0xFF2F65BA);
+const borderColor = Color(0xFF2F7C57);
 
 class _DesktopHomePageState extends State<DesktopHomePage>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
@@ -60,12 +61,23 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     super.build(context);
     final isIncomingOnly = bind.isIncomingOnly();
     return _buildBlock(
-        child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
       children: [
-        buildLeftPane(context),
-        if (!isIncomingOnly) const VerticalDivider(width: 1),
-        if (!isIncomingOnly) Expanded(child: buildRightPane(context)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildLeftPane(context),
+            if (!isIncomingOnly) const VerticalDivider(width: 1),
+            if (!isIncomingOnly) Expanded(child: buildRightPane(context)),
+          ],
+        ),
+        // Overlaid rather than added to the Row so it pins to the window corner without
+        // changing either pane's layout.
+        const Positioned(
+          right: 10,
+          bottom: 6,
+          child: MendocinoDeveloperCredit(),
+        ),
       ],
     ));
   }

@@ -1,0 +1,14 @@
+<!--
+  Mendocino Labs mark — three slanted rounded bars.
+  Reproduced as vector from the nav logo on https://manujautomation.github.io/website/
+  Brand greens: #30A46C (light) / #2F7C57 (mid) / #20573E (dark)
+  Used for: app icon, login screen, installer artwork, tray icon.
+-->
+<svg width="47" height="41" viewBox="0 0 47 41" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="7.49952" height="41.7644" rx="3.74976"
+        transform="matrix(0.954363 0.29865 -0.38984 0.920883 39.1313 0)" fill="#30A46C"/>
+  <rect width="7.49952" height="37.5879" rx="3.74976"
+        transform="matrix(0.954363 0.29865 -0.38984 0.920883 26.0781 4.0929)" fill="#2F7C57"/>
+  <rect width="7.49952" height="33.4115" rx="3.74976"
+        transform="matrix(0.954363 0.29865 -0.38984 0.920883 13.0254 7.36707)" fill="#20573E"/>
+</svg>

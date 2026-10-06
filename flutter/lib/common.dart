@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:back_button_interceptor/back_button_interceptor.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter_hbb/common/mrc_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -249,16 +250,16 @@ class MyTheme {
   MyTheme._();
 
   static const Color grayBg = Color(0xFFEFEFF2);
-  static const Color accent = Color(0xFF0071FF);
-  static const Color accent50 = Color(0x770071FF);
-  static const Color accent80 = Color(0xAA0071FF);
+  static const Color accent = Color(0xFF2F7C57);
+  static const Color accent50 = Color(0x772F7C57);
+  static const Color accent80 = Color(0xAA2F7C57);
   static const Color canvasColor = Color(0xFF212121);
   static const Color border = Color(0xFFCCCCCC);
-  static const Color idColor = Color(0xFF00B6F0);
+  static const Color idColor = Color(0xFF30A46C);
   static const Color darkGray = Color.fromARGB(255, 148, 148, 148);
   static const Color cmIdColor = Color(0xFF21790B);
   static const Color dark = Colors.black87;
-  static const Color button = Color(0xFF2C8CFF);
+  static const Color button = Color(0xFF30A46C);
   static const Color hoverBorder = Color(0xFF999999);
 
   // ListTile
@@ -2599,6 +2600,14 @@ connect(BuildContext context, String id,
   assert(!(isFileTransfer && isTcpTunneling && isRDP),
       "more than one connect type");
 
+  // Mendocino: reserve a slot with the session broker before opening anything. A build
+  // with no broker configured passes straight through; a configured broker that refuses,
+  // or cannot be reached, stops here.
+  if (!await mrcAuthorizeConnect(
+      context, id, isFileTransfer ? 'file' : 'control')) {
+    return;
+  }
+
   if (isDesktop) {
     if (desktopType == DesktopType.main) {
       await connectMainDesktop(
@@ -3819,7 +3828,13 @@ class _LogoState extends State<_Logo> {
 }
 
 // max 300 x 60
-Widget loadLogo() => const _Logo();
+// Mendocino: the upstream _Logo machinery below resolves a per-brightness raster asset.
+// Ours is a single vector that works on both, so it is returned directly.
+Widget loadLogo() => SvgPicture.asset(
+      'assets/mendocino_mark.svg',
+      height: 46,
+      fit: BoxFit.contain,
+    );
 
 Widget loadIcon(double size) {
   return Image.asset('assets/icon.png',

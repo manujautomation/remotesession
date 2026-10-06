@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter_hbb/common/mrc_broker_client.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -4366,6 +4367,9 @@ class FFI {
   /// Close the remote session.
   Future<void> close({bool closeSession = true}) async {
     closed = true;
+    // Mendocino: release the broker slot now rather than waiting for the heartbeat TTL,
+    // and stop the heartbeat timer so a closed tab cannot hold a slot indefinitely.
+    unawaited(MrcBroker.instance.endSession(id));
     if (isWeb) {
       platformFFI.clearVideoFrameCallback();
     }

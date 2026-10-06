@@ -205,14 +205,18 @@ fn check_update(manually: bool) -> ResultType<()> {
                 );
             };
             format!(
-                "{}/rustdesk-{}-{}.{}",
+                "{}/{}-{}-{}.{}",
                 download_url,
+                crate::mrc_update::ASSET_PREFIX,
                 version,
                 arch,
                 if update_msi { "msi" } else { "exe" }
             )
         } else {
-            format!("{}/rustdesk-{}-x86-sciter.exe", download_url, version)
+            format!(
+                "{}/{}-{}-x86-sciter.exe",
+                download_url, crate::mrc_update::ASSET_PREFIX, version
+            )
         };
         log::debug!("New version available: {}", &version);
         let client = create_http_client_with_url_strict(&download_url)?;
@@ -589,7 +593,13 @@ pub fn check_update_as_root() -> ResultType<bool> {
     let download_url = update_url.replace("tag", "download");
     let version = download_url.split('/').last().unwrap_or_default().to_string();
     let arch = if std::env::consts::ARCH == "aarch64" { "aarch64" } else { "x86_64" };
-    let dmg_url = format!("{}/rustdesk-{}-{}.dmg", download_url, version, arch);
+    let dmg_url = format!(
+        "{}/{}-{}-{}.dmg",
+        download_url,
+        crate::mrc_update::ASSET_PREFIX,
+        version,
+        arch
+    );
     log::info!("[root-update] New version: {}, downloading from {}", version, dmg_url);
     // Validate URL against GitHub release allowlist before downloading as root
     let Some(file_path_validated) = get_update_download_file_from_url(&dmg_url) else {
