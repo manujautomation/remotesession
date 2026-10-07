@@ -25,7 +25,10 @@ env:
   FLUTTER_VERSION: "3.24.5"
   RUST_VERSION: "1.75"
   FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
-  VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836"
+  # Must match the "baseline" in vcpkg.json — manifest mode resolves the registry
+  # baseline against this checkout, and they have to agree. 6f29f12e is upstream's
+  # ARMv7 pin, not the general one; using it here was the bug.
+  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
 
 jobs:
   build-windows:
@@ -99,15 +102,28 @@ jobs:
       - name: Setup vcpkg with GitHub Actions binary cache
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgDirectory: C:/vcpkg
-          doNotUpdateVcpkg: true
+          vcpkgDirectory: C:\vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
 
+      # Manifest mode: the package list lives in vcpkg.json at the repo root, along with
+      # overlay ports/triplets under res/. Naming packages on the command line (as this
+      # step first did) bypasses the manifest and its pinned baseline. Call the binary by
+      # its full path rather than trusting PATH, and dump the build logs on failure —
+      # otherwise a vcpkg failure says nothing about which port broke or why.
       - name: Install vcpkg dependencies
-        run: |
-          vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+        shell: bash
         env:
-          VCPKG_DEFAULT_TRIPLET: x64-windows-static
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          if ! "$VCPKG_ROOT/vcpkg" install \
+              --triplet x64-windows-static \
+              --x-install-root="$VCPKG_ROOT/installed"; then
+            find "$VCPKG_ROOT/" -name "*.log" | while read -r f; do
+              echo "=== $f ==="; cat "$f"; echo
+            done
+            exit 1
+          fi
 
       # `flutter pub get` MUST run before codegen: the generator shells out to
       # `flutter pub run ffigen`, which needs .dart_tool/package_config.json. Without it
