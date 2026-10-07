@@ -46,21 +46,43 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
 
-      # Upstream ships a patched engine for texture rendering on x64. Skipping it risks
-      # runtime rendering differences, so we match upstream rather than find out.
+      # Upstream's patched engine for texture rendering on x64.
+      #
+      # Upstream hardcodes C:/hostedtoolcache/windows/flutter/stable-<ver>-x64/..., which
+      # depends on how flutter-action lays out its cache — upstream pins that action to an
+      # exact SHA, so the path is stable for them and not for us. Resolve it from the
+      # flutter binary instead.
+      #
+      # continue-on-error because this is an optimisation, not a requirement: the stock
+      # engine still produces a working build, and an optional step must not be able to
+      # fail the whole job.
       - name: Replace engine with rustdesk custom flutter engine
-        run: |
-          flutter doctor -v
-          flutter precache --windows
-          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
-          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
-          mv -Force windows-x64-release/* "C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/"
-
-      - name: Patch flutter
+        continue-on-error: true
         shell: bash
         run: |
-          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
-          cd $(dirname $(dirname $(which flutter)))
+          set -eux
+          flutter precache --windows
+          FLUTTER_ROOT="$(dirname "$(dirname "$(which flutter)")")"
+          DEST="$FLUTTER_ROOT/bin/cache/artifacts/engine/windows-x64-release"
+          echo "flutter root: $FLUTTER_ROOT"
+          ls -la "$FLUTTER_ROOT/bin/cache/artifacts/engine/" || true
+          curl -fsSL -o engine.zip \
+            https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip
+          mkdir -p "$DEST"
+          unzip -o engine.zip -d "$DEST"
+          ls -la "$DEST" | head
+
+      # Upstream's dropdown-filter patch for 3.24.5. Also best-effort: it only affects a
+      # UI affordance, and `git apply` fails outright if the SDK has already been patched
+      # or differs even slightly — not a reason to lose the whole build.
+      - name: Patch flutter
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -eux
+          FLUTTER_ROOT="$(dirname "$(dirname "$(which flutter)")")"
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff "$FLUTTER_ROOT"
+          cd "$FLUTTER_ROOT"
           git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
 
       - name: Install Rust toolchain
