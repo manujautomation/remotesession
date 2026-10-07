@@ -440,15 +440,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildHelpCards(String updateUrl) {
-    if (!bind.isCustomClient() &&
-        updateUrl.isNotEmpty &&
-        !isCardClosed &&
-        bind.mainUriPrefixSync().contains('rustdesk')) {
-      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();
+    // Mendocino: upstream hides this card whenever the build is a custom client or its URI
+    // prefix is not "rustdesk", and limits the in-place update to Windows/macOS. We are a
+    // custom client, frequently on Linux — so without this the update path exists in the
+    // backend but is unreachable from the UI.
+    if (updateUrl.isNotEmpty && !isCardClosed) {
+      final isToUpdate =
+          (isWindows || isMacOS || isLinux) && bind.mainIsInstalled();
       String btnText = isToUpdate ? 'Update' : 'Download';
       GestureTapCallback onPressed = () async {
-        final Uri url = Uri.parse('https://rustdesk.com/download');
-        await launchUrl(url);
+        // The release page for the new version, not a vendor download site.
+        await launchUrl(Uri.parse(updateUrl));
       };
       if (isToUpdate) {
         onPressed = () {
@@ -462,9 +464,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           onPressed,
           closeButton: true,
           help: isToUpdate ? 'Changelog' : null,
-          link: isToUpdate
-              ? 'https://github.com/rustdesk/rustdesk/releases/tag/${bind.mainGetNewVersion()}'
-              : null);
+          // updateUrl is already the release tag URL our own update check produced, so
+          // this needs no second source of truth for the repository name.
+          link: isToUpdate ? updateUrl : null);
     }
     if (systemError.isNotEmpty) {
       return buildInstallCard("", systemError, "", () {});

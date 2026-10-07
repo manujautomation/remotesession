@@ -2728,41 +2728,11 @@ pub fn main_get_common(key: String) -> String {
                 }
             }
         } else if key.starts_with("download-file-") {
-            let _version = key.replace("download-file-", "");
-            #[cfg(target_os = "windows")]
-            return match (
-                crate::platform::windows::is_msi_installed(),
-                crate::common::is_custom_client(),
-            ) {
-                (Ok(true), false) => match crate::platform::windows::release_arch_suffix() {
-                    Some(arch) => format!("rustdesk-{_version}-{arch}.msi"),
-                    None => "error:unsupported".to_owned(),
-                },
-                (Ok(true), true) | (Ok(false), _) => {
-                    match crate::platform::windows::release_arch_suffix() {
-                        Some(arch) => format!("rustdesk-{_version}-{arch}.exe"),
-                        None => "error:unsupported".to_owned(),
-                    }
-                }
-                (Err(e), _) => {
-                    log::error!("Failed to check if is msi: {}", e);
-                    format!("error:update-failed-check-msi-tip")
-                }
-            };
-            #[cfg(target_os = "macos")]
-            {
-                return if cfg!(target_arch = "x86_64") {
-                    format!("rustdesk-{_version}-x86_64.dmg")
-                } else if cfg!(target_arch = "aarch64") {
-                    format!("rustdesk-{_version}-aarch64.dmg")
-                } else {
-                    "error:unsupported".to_owned()
-                };
-            }
-            #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-            {
-                "error:unsupported".to_owned()
-            }
+            // Mendocino: one naming source for every platform. Upstream hardcodes
+            // "rustdesk-" and returns "error:unsupported" on Linux, which makes the
+            // in-app update path dead there even though the download and install work.
+            let version = key.replace("download-file-", "");
+            crate::mrc_update::asset_name(&version)
         } else {
             "".to_owned()
         }

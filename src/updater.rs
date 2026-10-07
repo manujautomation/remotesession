@@ -218,6 +218,14 @@ fn check_update(manually: bool) -> ResultType<()> {
                 download_url, crate::mrc_update::ASSET_PREFIX, version
             )
         };
+        // Mendocino: upstream only names an asset for Windows/macOS, leaving the Linux
+        // URL pointing at the release directory, which cannot be downloaded.
+        #[cfg(target_os = "linux")]
+        let download_url = format!(
+            "{}/{}",
+            download_url,
+            crate::mrc_update::asset_name(&version)
+        );
         log::debug!("New version available: {}", &version);
         let client = create_http_client_with_url_strict(&download_url)?;
         let Some(file_path) = get_download_file_from_url(&download_url) else {
@@ -264,6 +272,11 @@ fn check_update(manually: bool) -> ResultType<()> {
         if has_no_active_conns() {
             #[cfg(target_os = "windows")]
             update_new_version(update_msi, &version, &file_path);
+            #[cfg(target_os = "linux")]
+            if let Err(e) = crate::mrc_update::install_deb(&file_path) {
+                // Leave the file in place; the operator can install it by hand.
+                log::error!("Automatic update failed, {:?} kept: {e}", file_path);
+            }
         }
     }
     Ok(())

@@ -55,6 +55,62 @@ pub fn is_enabled() -> bool {
     hard("mrc-disable-update-check") != "Y"
 }
 
+/// Release asset filename for this platform: `<prefix>-<version>-<arch>.<ext>`.
+///
+/// Upstream only ever builds this for Windows and macOS, so on Linux the download URL was
+/// left pointing at the release *directory* rather than a file.
+pub fn asset_name(version: &str) -> String {
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x86_64"
+    };
+    let ext = if cfg!(target_os = "windows") {
+        "exe"
+    } else if cfg!(target_os = "macos") {
+        "dmg"
+    } else {
+        "deb"
+    };
+    format!("{ASSET_PREFIX}-{version}-{arch}.{ext}")
+}
+
+/// Install a downloaded .deb.
+///
+/// The updater may run either in the root service or in the user session. As root we can
+/// call apt directly; otherwise pkexec raises the usual desktop authentication prompt.
+/// A remote-access tool silently self-elevating with no prompt would be worse.
+#[cfg(target_os = "linux")]
+pub fn install_deb(file_path: &std::path::Path) -> ResultType<()> {
+    use std::process::Command;
+
+    let path = file_path.to_string_lossy().to_string();
+    let is_root = unsafe { hbb_common::libc::geteuid() } == 0;
+
+    // apt resolves dependencies; dpkg -i would fail on a new one.
+    let output = if is_root {
+        Command::new("apt-get")
+            .args(["install", "-y", "--allow-downgrades", &path])
+            .output()?
+    } else {
+        Command::new("pkexec")
+            .args(["apt-get", "install", "-y", "--allow-downgrades", &path])
+            .output()?
+    };
+
+    if output.status.success() {
+        log::info!("Update installed from {path}");
+        Ok(())
+    } else {
+        // Not fatal: the user can still install it by hand, and the file is already local.
+        bail!(
+            "apt-get failed ({}): {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        )
+    }
+}
+
 #[derive(Deserialize)]
 struct GithubRelease {
     #[serde(default)]
