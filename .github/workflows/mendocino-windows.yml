@@ -100,29 +100,35 @@ jobs:
             --dart-output ./flutter/lib/generated_bridge.dart \
             --c-output ./flutter/macos/Runner/bridge_generated.h
 
+      # NOT --skip-portable-pack: that leaves a Release directory, and zipping it would
+      # produce a .zip while the in-app updater asks for a .exe (mrc_update::asset_name),
+      # so the Windows update would 404. The packer emits a single self-extracting
+      # installer, which is what the updater can actually run.
       - name: Build
-        run: |
-          python3 .\build.py --portable --flutter --skip-portable-pack
-          mv ./flutter/build/windows/x64/runner/Release ./mendocino-apcela-remote
+        run: python3 .\build.py --portable --flutter
 
       # Version comes from Cargo.toml so it matches crate::VERSION, which is what the
-      # in-app updater compares GitHub release tags against. If these drift, the update
-      # channel silently stops offering anything.
-      - name: Package
+      # updater compares release tags against. If these drift, the update channel
+      # silently stops offering anything.
+      - name: Rename to the asset name the updater constructs
         shell: bash
         run: |
           VERSION=$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          7z a -tzip "mendocino-apcela-remote-${VERSION}-x86_64.zip" ./mendocino-apcela-remote/*
+          SRC="rustdesk-${VERSION}-install.exe"
+          DEST="mendocino-apcela-remote-${VERSION}-x86_64.exe"
+          test -f "$SRC" || { echo "expected $SRC from build.py; got:"; ls -la *.exe || true; exit 1; }
+          mv "$SRC" "$DEST"
+          ls -la "$DEST"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: mendocino-apcela-remote-windows-x86_64
-          path: mendocino-apcela-remote-*.zip
+          path: mendocino-apcela-remote-*.exe
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: mendocino-apcela-remote-*.zip
+          files: mendocino-apcela-remote-*.exe
